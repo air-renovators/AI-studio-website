@@ -3,6 +3,7 @@ import { readConfigs, readCreators, readVideos, writeVideos } from "./csv";
 import { scrapeReels } from "./apify";
 import { uploadVideo, analyzeVideo } from "./gemini";
 import { generateNewConcepts } from "./claude";
+import { ensureImageDir, downloadImage } from "./imageStorage";
 import type { PipelineParams, PipelineProgress, Video, ActiveTask } from "./types";
 
 const VIDEO_CONCURRENCY = 3;
@@ -75,6 +76,9 @@ export async function runPipeline(
   };
 
   try {
+    // Ensure image directory exists
+    await ensureImageDir();
+
     // Load config
     const configs = readConfigs();
     const config = configs.find((c) => c.configName === params.configName);
@@ -188,10 +192,15 @@ export async function runPipeline(
 
         const newConcepts = await generateNewConcepts(analysis, config.newConceptsInstruction);
 
+        // Download and store thumbnail locally
+        updateTask(taskId, "Saving thumbnail");
+        const localThumbnail = await downloadImage(video.thumbnail, "thumbnail");
+        const thumbnailPath = localThumbnail || video.thumbnail; // Fallback to original URL if download fails
+
         const videoRecord: Video = {
           id: uuid(),
           link: video.postUrl,
-          thumbnail: video.thumbnail,
+          thumbnail: thumbnailPath,
           creator: video.username,
           views: video.views,
           likes: video.likes,

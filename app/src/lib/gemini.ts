@@ -1,5 +1,5 @@
 const GEMINI_UPLOAD_URL = "https://generativelanguage.googleapis.com/upload/v1beta/files";
-const GEMINI_GENERATE_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
+const GEMINI_GENERATE_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent";
 
 function getApiKey(): string {
   const key = process.env.GEMINI_API_KEY;
@@ -85,7 +85,7 @@ export async function analyzeVideo(
             {
               role: "user",
               parts: [
-                { fileData: { fileUri, mimeType } },
+                { file_data: { file_uri: fileUri, mime_type: mimeType } },
                 { text: analysisPrompt },
               ],
             },
