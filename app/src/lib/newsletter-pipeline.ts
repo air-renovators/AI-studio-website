@@ -11,22 +11,13 @@ import type {
   Newsletter,
 } from "./newsletter-types";
 
-const IS_VERCEL = !!process.env.VERCEL;
-const NEWSLETTERS_FILE = IS_VERCEL
-  ? path.join("/tmp", "newsletters.json")
-  : path.join(process.cwd(), "data", "newsletters.json");
-const IMAGES_DIR = IS_VERCEL
-  ? path.join("/tmp", "newsletter-images")
-  : path.join(process.cwd(), "public", "images", "newsletters");
+// Always use /tmp — works on Vercel (read-only filesystem) and locally
+const NEWSLETTERS_FILE = path.join("/tmp", "newsletters.json");
 const BRAND_CONTEXT_PATH = path.join(
   process.cwd(),
   "..",
   "BRAND-CONTEXT.md"
 );
-
-async function ensureDir(dir: string) {
-  await fs.mkdir(dir, { recursive: true });
-}
 
 async function loadBrandContext(): Promise<string> {
   try {
@@ -261,7 +252,6 @@ export async function readNewsletters(): Promise<Newsletter[]> {
 }
 
 async function saveNewsletter(newsletter: Newsletter): Promise<void> {
-  await ensureDir(path.dirname(NEWSLETTERS_FILE));
   const existing = await readNewsletters();
   existing.unshift(newsletter);
   await fs.writeFile(NEWSLETTERS_FILE, JSON.stringify(existing, null, 2));
@@ -295,10 +285,6 @@ export async function runNewsletterPipeline(
   };
 
   try {
-    if (process.env.NEWSLETTER_BASE_URL) {
-      await ensureDir(IMAGES_DIR);
-    }
-
     // Step 1: Load brand context
     log("Loading brand context...");
     const brandContext = await loadBrandContext();
@@ -331,7 +317,7 @@ export async function runNewsletterPipeline(
       `Content generated: ${content.sections.length} sections, ${content.subjectLines.length} subject lines`
     );
 
-    // Step 4: Image generation
+    // Step 4: Image generation — always embed as base64 (no filesystem writes)
     progress.phase = "images";
     const numImages = params.numImages ?? content.sections.length;
     const sectionsToImage = content.sections.slice(0, numImages);
@@ -348,21 +334,9 @@ export async function runNewsletterPipeline(
 
       try {
         const imageBuffer = await generateImage(section.imagePrompt);
-        const baseUrl = process.env.NEWSLETTER_BASE_URL || "";
-
-        if (baseUrl) {
-          // Save to filesystem and use public URL
-          const filename = `newsletter-${uuid().slice(0, 8)}.png`;
-          const filePath = path.join(IMAGES_DIR, filename);
-          await fs.writeFile(filePath, imageBuffer);
-          section.imageUrl = `${baseUrl}/images/newsletters/${filename}`;
-          log(`Image ${i + 1} saved: ${filename}`);
-        } else {
-          // Embed as base64 data URI (works on Vercel / no public URL)
-          const b64 = imageBuffer.toString("base64");
-          section.imageUrl = `data:image/png;base64,${b64}`;
-          log(`Image ${i + 1} embedded as base64`);
-        }
+        const b64 = imageBuffer.toString("base64");
+        section.imageUrl = `data:image/png;base64,${b64}`;
+        log(`Image ${i + 1} generated`);
       } catch (err) {
         const msg = `Image ${i + 1} failed: ${err instanceof Error ? err.message : err}`;
         progress.errors.push(msg);
