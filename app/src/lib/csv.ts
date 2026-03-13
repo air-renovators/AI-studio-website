@@ -4,7 +4,9 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
 import path from "path";
 import type { Config, Creator, Video } from "./types";
 
-const DATA_DIR = path.join(process.cwd(), "..", "data");
+const DATA_DIR = process.env.VERCEL
+  ? path.join("/tmp", "data")
+  : path.join(process.cwd(), "..", "data");
 
 function ensureDataDir() {
   if (!existsSync(DATA_DIR)) {

@@ -2,7 +2,9 @@ import { promises as fs } from "fs";
 import * as path from "path";
 import { v4 as uuid } from "uuid";
 
-const IMAGE_DIR = path.join(process.cwd(), "public", "images");
+const IMAGE_DIR = process.env.VERCEL
+  ? path.join("/tmp", "images")
+  : path.join(process.cwd(), "public", "images");
 
 // Ensure image directory exists
 export async function ensureImageDir(): Promise<void> {

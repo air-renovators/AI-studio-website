@@ -286,6 +286,7 @@ export async function runNewsletterPipeline(
 
   try {
     // Step 1: Load brand context
+    log("Pipeline v3 — no filesystem writes");
     log("Loading brand context...");
     const brandContext = await loadBrandContext();
     log("Brand context loaded");
