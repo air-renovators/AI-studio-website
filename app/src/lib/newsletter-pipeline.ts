@@ -11,8 +11,13 @@ import type {
   Newsletter,
 } from "./newsletter-types";
 
-const NEWSLETTERS_FILE = path.join(process.cwd(), "data", "newsletters.json");
-const IMAGES_DIR = path.join(process.cwd(), "public", "images", "newsletters");
+const IS_VERCEL = !!process.env.VERCEL;
+const NEWSLETTERS_FILE = IS_VERCEL
+  ? path.join("/tmp", "newsletters.json")
+  : path.join(process.cwd(), "data", "newsletters.json");
+const IMAGES_DIR = IS_VERCEL
+  ? path.join("/tmp", "newsletter-images")
+  : path.join(process.cwd(), "public", "images", "newsletters");
 const BRAND_CONTEXT_PATH = path.join(
   process.cwd(),
   "..",
@@ -284,7 +289,9 @@ export async function runNewsletterPipeline(
   };
 
   try {
-    await ensureDir(IMAGES_DIR);
+    if (process.env.NEWSLETTER_BASE_URL) {
+      await ensureDir(IMAGES_DIR);
+    }
 
     // Step 1: Load brand context
     log("Loading brand context...");
@@ -335,16 +342,21 @@ export async function runNewsletterPipeline(
 
       try {
         const imageBuffer = await generateImage(section.imagePrompt);
-        const filename = `newsletter-${uuid().slice(0, 8)}.png`;
-        const filePath = path.join(IMAGES_DIR, filename);
-        await fs.writeFile(filePath, imageBuffer);
-
         const baseUrl = process.env.NEWSLETTER_BASE_URL || "";
-        section.imageUrl = baseUrl
-          ? `${baseUrl}/images/newsletters/${filename}`
-          : `/images/newsletters/${filename}`;
 
-        log(`Image ${i + 1} saved: ${filename}`);
+        if (baseUrl) {
+          // Save to filesystem and use public URL
+          const filename = `newsletter-${uuid().slice(0, 8)}.png`;
+          const filePath = path.join(IMAGES_DIR, filename);
+          await fs.writeFile(filePath, imageBuffer);
+          section.imageUrl = `${baseUrl}/images/newsletters/${filename}`;
+          log(`Image ${i + 1} saved: ${filename}`);
+        } else {
+          // Embed as base64 data URI (works on Vercel / no public URL)
+          const b64 = imageBuffer.toString("base64");
+          section.imageUrl = `data:image/png;base64,${b64}`;
+          log(`Image ${i + 1} embedded as base64`);
+        }
       } catch (err) {
         const msg = `Image ${i + 1} failed: ${err instanceof Error ? err.message : err}`;
         progress.errors.push(msg);
