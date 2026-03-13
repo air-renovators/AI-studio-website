@@ -143,7 +143,13 @@ Make the image prompts descriptive — they will be used to generate infographic
   );
   if (!textBlock) throw new Error("No text response from Claude");
 
-  const parsed = JSON.parse(textBlock.text) as Omit<NewsletterContent, "research">;
+  // Strip markdown code fences if present
+  let jsonText = textBlock.text.trim();
+  if (jsonText.startsWith("```")) {
+    jsonText = jsonText.replace(/^```(?:json)?\s*/, "").replace(/\s*```$/, "");
+  }
+
+  const parsed = JSON.parse(jsonText) as Omit<NewsletterContent, "research">;
   return { ...parsed, research };
 }
 
